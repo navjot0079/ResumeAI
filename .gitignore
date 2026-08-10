@@ -1,0 +1,36 @@
+# ===== Python / Backend =====
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+.env
+
+# ===== Node / Frontend =====
+node_modules/
+dist/
+.cache/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== IDEs & Editors =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== Uploads =====
+uploads/
+
+# ===== Logs =====
+*.log
+npm-debug.log*
