@@ -43,6 +43,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Ensure upload directory exists before mounting static files
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+
 # Static files for uploads
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
