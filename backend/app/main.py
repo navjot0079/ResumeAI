@@ -30,6 +30,7 @@ app = FastAPI(
 cors_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://resume-ai-qfdd.vercel.app",
 ]
 frontend_url = os.getenv("FRONTEND_URL")
 if frontend_url:
