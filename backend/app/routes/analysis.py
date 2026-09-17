@@ -30,7 +30,7 @@ async def create_analysis(
             detail="Resume not found",
         )
 
-    # Extract text from PDF
+    # Extract text from PDF (uses pypdf first, falls back to Gemini OCR for scanned PDFs)
     try:
         resume_text = extract_text_from_pdf(resume["filePath"])
     except ValueError as e:
