@@ -14,8 +14,18 @@ async def analyze_resume(resume_text: str, job_description: str) -> dict:
     Returns structured analysis results.
     """
     configure_gemini()
+    # Configure generation parameters for consistent, reliable ATS scoring:
+    # - temperature=0.2: Low temperature reduces randomness and prevents wild score fluctuations across repeated runs
+    # - response_mime_type="application/json": Guarantees structured JSON output directly from Gemini
+    generation_config = genai.types.GenerationConfig(
+        temperature=0.2,
+        response_mime_type="application/json",
+    )
 
-    model = genai.GenerativeModel("gemini-3.1-flash-lite")
+    model = genai.GenerativeModel(
+        "gemini-3.1-flash-lite",
+        generation_config=generation_config,
+    )
 
     prompt = f"""You are an expert ATS (Applicant Tracking System) resume analyzer. 
 Analyze the following resume against the provided job description and return a detailed analysis.

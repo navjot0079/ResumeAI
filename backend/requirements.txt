@@ -10,3 +10,4 @@ pypdf
 google-generativeai
 python-dotenv
 pydantic[email]
+slowapi

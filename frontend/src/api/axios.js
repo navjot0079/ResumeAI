@@ -4,6 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -30,31 +31,29 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true
 
-      const refreshToken = localStorage.getItem('refresh_token')
-      if (refreshToken) {
-        try {
-          const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-            refresh_token: refreshToken,
-          })
+      try {
+        // Refresh token is sent automatically via HttpOnly cookie (with fallback if legacy token exists in localStorage)
+        const legacyRefreshToken = localStorage.getItem('refresh_token')
+        const response = await axios.post(
+          `${API_BASE_URL}/auth/refresh`,
+          legacyRefreshToken ? { refresh_token: legacyRefreshToken } : {},
+          { withCredentials: true }
+        )
 
-          const { access_token, refresh_token: newRefreshToken } = response.data
-          localStorage.setItem('access_token', access_token)
-          localStorage.setItem('refresh_token', newRefreshToken)
+        const { access_token } = response.data
+        localStorage.setItem('access_token', access_token)
+        // Clean up any legacy refresh_token from localStorage since it is now in HttpOnly cookie
+        localStorage.removeItem('refresh_token')
 
-          originalRequest.headers.Authorization = `Bearer ${access_token}`
-          return api(originalRequest)
-        } catch (refreshError) {
-          // Refresh failed — clear tokens and redirect to login
-          localStorage.removeItem('access_token')
-          localStorage.removeItem('refresh_token')
-          localStorage.removeItem('user')
-          window.location.href = '/login'
-          return Promise.reject(refreshError)
-        }
-      } else {
+        originalRequest.headers.Authorization = `Bearer ${access_token}`
+        return api(originalRequest)
+      } catch (refreshError) {
+        // Refresh failed — clear tokens and redirect to login
         localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
         localStorage.removeItem('user')
         window.location.href = '/login'
+        return Promise.reject(refreshError)
       }
     }
 

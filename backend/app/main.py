@@ -4,6 +4,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+from app.limiter import limiter
+
 from app.config import settings
 from app.database import connect_to_mongo, close_mongo_connection
 from app.routes import auth, resume, analysis, dashboard
@@ -25,6 +29,11 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Rate Limiter setup
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 
 # CORS
 cors_origins = [

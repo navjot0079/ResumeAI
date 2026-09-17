@@ -15,6 +15,10 @@ class Settings:
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+    COOKIE_SECURE: bool = os.getenv("COOKIE_SECURE", "false").lower() in ("true", "1") or os.getenv("ENVIRONMENT") == "production"
+    COOKIE_SAMESITE: str = os.getenv("COOKIE_SAMESITE", "lax")
 
 
 settings = Settings()
+

@@ -40,10 +40,10 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     try {
       const response = await api.post('/auth/login', { email, password })
-      const { access_token, refresh_token, user: userData } = response.data
+      const { access_token, user: userData } = response.data
 
       localStorage.setItem('access_token', access_token)
-      localStorage.setItem('refresh_token', refresh_token)
+      localStorage.removeItem('refresh_token') // Ensure any legacy token is cleared
       localStorage.setItem('user', JSON.stringify(userData))
 
       setUser(userData)
@@ -61,10 +61,10 @@ export function AuthProvider({ children }) {
   const signup = async (name, email, password) => {
     try {
       const response = await api.post('/auth/signup', { name, email, password })
-      const { access_token, refresh_token, user: userData } = response.data
+      const { access_token, user: userData } = response.data
 
       localStorage.setItem('access_token', access_token)
-      localStorage.setItem('refresh_token', refresh_token)
+      localStorage.removeItem('refresh_token') // Ensure any legacy token is cleared
       localStorage.setItem('user', JSON.stringify(userData))
 
       setUser(userData)
@@ -79,13 +79,19 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const logout = () => {
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('refresh_token')
-    localStorage.removeItem('user')
-    setUser(null)
-    setIsAuthenticated(false)
-    toast.success('Logged out successfully')
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout')
+    } catch (e) {
+      // Best-effort backend logout (e.g. if network or server is down)
+    } finally {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      localStorage.removeItem('user')
+      setUser(null)
+      setIsAuthenticated(false)
+      toast.success('Logged out successfully')
+    }
   }
 
   return (

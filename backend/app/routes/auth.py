@@ -1,9 +1,12 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Request, Response
 from datetime import datetime, timezone
 from bson import ObjectId
 from jose import JWTError
+from typing import Optional
 
 from app.database import get_database
+from app.config import settings
+from app.limiter import limiter
 from app.models.user import (
     UserCreate,
     UserLogin,
@@ -22,10 +25,36 @@ from app.middleware.auth_middleware import get_current_user
 
 router = APIRouter()
 
+COOKIE_PATH = "/api/auth"
+
+
+def set_refresh_cookie(response: Response, refresh_token: str):
+    """Set the refresh token in an HttpOnly, secure cookie."""
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite=settings.COOKIE_SAMESITE,
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        path=COOKIE_PATH,
+    )
+
+
+def clear_refresh_cookie(response: Response):
+    """Remove the refresh token cookie upon logout."""
+    response.delete_cookie(
+        key="refresh_token",
+        path=COOKIE_PATH,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite=settings.COOKIE_SAMESITE,
+    )
+
 
 @router.post("/signup", response_model=TokenResponse)
-async def signup(user_data: UserCreate):
-    """Register a new user."""
+async def signup(request: Request, response: Response, user_data: UserCreate):
+    """Register a new user and set HttpOnly refresh token cookie."""
     db = get_database()
 
     # Check if email already exists
@@ -51,6 +80,8 @@ async def signup(user_data: UserCreate):
     access_token = create_access_token(user_id)
     refresh_token = create_refresh_token(user_id)
 
+    set_refresh_cookie(response, refresh_token)
+
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -64,8 +95,9 @@ async def signup(user_data: UserCreate):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(user_data: UserLogin):
-    """Authenticate user and return tokens."""
+@limiter.limit("5/minute")
+async def login(request: Request, response: Response, user_data: UserLogin):
+    """Authenticate user with rate limiting (5/min) and set HttpOnly refresh cookie."""
     db = get_database()
 
     user = await db.users.find_one({"email": user_data.email})
@@ -84,6 +116,8 @@ async def login(user_data: UserLogin):
     user_id = str(user["_id"])
     access_token = create_access_token(user_id)
     refresh_token = create_refresh_token(user_id)
+
+    set_refresh_cookie(response, refresh_token)
 
     return TokenResponse(
         access_token=access_token,
@@ -109,10 +143,27 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(token_data: RefreshTokenRequest):
-    """Refresh the access token using a valid refresh token."""
+async def refresh_token(
+    request: Request,
+    response: Response,
+    token_data: Optional[RefreshTokenRequest] = None,
+):
+    """Refresh the access token using HttpOnly cookie (fallback to body if provided)."""
+    # 1. Look for refresh token in HttpOnly cookie
+    token = request.cookies.get("refresh_token")
+
+    # 2. Fallback to request body if cookie not present
+    if not token and token_data and token_data.refresh_token:
+        token = token_data.refresh_token
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token missing",
+        )
+
     try:
-        payload = decode_refresh_token(token_data.refresh_token)
+        payload = decode_refresh_token(token)
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(
@@ -137,6 +188,8 @@ async def refresh_token(token_data: RefreshTokenRequest):
     new_access_token = create_access_token(user_id)
     new_refresh_token = create_refresh_token(user_id)
 
+    set_refresh_cookie(response, new_refresh_token)
+
     return TokenResponse(
         access_token=new_access_token,
         refresh_token=new_refresh_token,
@@ -147,3 +200,11 @@ async def refresh_token(token_data: RefreshTokenRequest):
             createdAt=user["createdAt"],
         ),
     )
+
+
+@router.post("/logout")
+async def logout(response: Response):
+    """Clear the HttpOnly refresh token cookie on logout."""
+    clear_refresh_cookie(response)
+    return {"message": "Logged out successfully"}
+
