@@ -1,3 +1,4 @@
+import os
 import logging
 from pypdf import PdfReader
 import google.generativeai as genai
@@ -29,6 +30,38 @@ def _extract_with_pypdf(file_path: str) -> str:
                 text += page_text + "\n"
     except Exception as e:
         logger.warning("pypdf extraction failed: %s", e)
+    return text.strip()
+
+
+def _extract_with_docx(file_path: str) -> str:
+    """
+    Extract text from a DOCX file using python-docx.
+    Extracts text from paragraphs and tables.
+    """
+    from docx import Document
+
+    text = ""
+    try:
+        doc = Document(file_path)
+
+        # Extract text from paragraphs
+        for paragraph in doc.paragraphs:
+            if paragraph.text.strip():
+                text += paragraph.text + "\n"
+
+        # Extract text from tables (resumes sometimes use tables for layout)
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = []
+                for cell in row.cells:
+                    cell_text = cell.text.strip()
+                    if cell_text:
+                        row_text.append(cell_text)
+                if row_text:
+                    text += " | ".join(row_text) + "\n"
+
+    except Exception as e:
+        logger.warning("DOCX extraction failed: %s", e)
     return text.strip()
 
 
@@ -77,24 +110,41 @@ def _extract_with_gemini_ocr(file_path: str) -> str:
                 pass  # best-effort cleanup
 
 
-def extract_text_from_pdf(file_path: str) -> str:
+def extract_text_from_file(file_path: str) -> str:
     """
-    Extract text from a PDF file.
+    Extract text from a resume file (PDF or DOCX).
 
-    Strategy:
+    Strategy for PDF:
       1. Try pypdf (fast, free, no API call).
       2. If the extracted text is too short (< 50 chars), fall back to
          Gemini multimodal OCR to handle scanned/image-based PDFs.
       3. If both methods yield no text, raise an error.
+
+    Strategy for DOCX:
+      1. Use python-docx to extract text from paragraphs and tables.
+      2. If extraction yields too little text, raise an error.
     """
-    # --- Step 1: Try pypdf ---
+    ext = os.path.splitext(file_path)[1].lower()
+
+    if ext == ".docx":
+        text = _extract_with_docx(file_path)
+        if len(text) >= MIN_TEXT_LENGTH:
+            logger.info("DOCX extracted %d characters", len(text))
+            return text
+        raise ValueError(
+            "No text content could be extracted from the DOCX file. "
+            "The file may be empty or corrupted."
+        )
+
+    # --- PDF extraction ---
+    # Step 1: Try pypdf
     text = _extract_with_pypdf(file_path)
 
     if len(text) >= MIN_TEXT_LENGTH:
         logger.info("pypdf extracted %d characters — using direct text", len(text))
         return text
 
-    # --- Step 2: Fall back to Gemini OCR ---
+    # Step 2: Fall back to Gemini OCR
     logger.info(
         "pypdf extracted only %d characters — falling back to Gemini OCR",
         len(text),
@@ -104,8 +154,12 @@ def extract_text_from_pdf(file_path: str) -> str:
     if ocr_text and len(ocr_text.strip()) >= MIN_TEXT_LENGTH:
         return ocr_text.strip()
 
-    # --- Step 3: Nothing worked ---
+    # Step 3: Nothing worked
     raise ValueError(
         "No text content could be extracted from the PDF. "
         "The file may be empty, corrupted, or contain only non-text graphics."
     )
+
+
+# Keep backward-compatible alias for any external callers
+extract_text_from_pdf = extract_text_from_file

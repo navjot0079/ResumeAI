@@ -11,7 +11,8 @@ def configure_gemini():
 async def analyze_resume(resume_text: str, job_description: str) -> dict:
     """
     Send resume text and job description to Gemini API for analysis.
-    Returns structured analysis results.
+    Returns structured analysis results including ATS score, skill gaps,
+    section-wise quality scores, experience bullet analysis, and parsed sections.
     """
     configure_gemini()
     # Configure generation parameters for consistent, reliable ATS scoring:
@@ -27,8 +28,8 @@ async def analyze_resume(resume_text: str, job_description: str) -> dict:
         generation_config=generation_config,
     )
 
-    prompt = f"""You are an expert ATS (Applicant Tracking System) resume analyzer. 
-Analyze the following resume against the provided job description and return a detailed analysis.
+    prompt = f"""You are an expert ATS (Applicant Tracking System) resume analyzer and career coach.
+Analyze the following resume against the provided job description and return a comprehensive analysis.
 
 RESUME TEXT:
 {resume_text}
@@ -45,7 +46,49 @@ Provide your analysis in the following JSON format ONLY (no markdown, no code bl
     "missingKeywords": ["<keyword1>", "<keyword2>", ...],
     "strengths": ["<strength1>", "<strength2>", ...],
     "weaknesses": ["<weakness1>", "<weakness2>", ...],
-    "suggestions": ["<suggestion1>", "<suggestion2>", ...]
+    "suggestions": ["<suggestion1>", "<suggestion2>", ...],
+    "sectionScores": {{
+        "summary": {{
+            "score": <integer 0-100>,
+            "feedback": "<specific feedback about the summary/objective section>"
+        }},
+        "experience": {{
+            "score": <integer 0-100>,
+            "feedback": "<specific feedback about the experience section>"
+        }},
+        "education": {{
+            "score": <integer 0-100>,
+            "feedback": "<specific feedback about the education section>"
+        }},
+        "skills": {{
+            "score": <integer 0-100>,
+            "feedback": "<specific feedback about the skills section>"
+        }},
+        "projects": {{
+            "score": <integer 0-100>,
+            "feedback": "<specific feedback about the projects section>"
+        }},
+        "formatting": {{
+            "score": <integer 0-100>,
+            "feedback": "<specific feedback about resume formatting and structure>"
+        }}
+    }},
+    "bulletAnalysis": [
+        {{
+            "original": "<exact weak/generic bullet point from the resume>",
+            "issue": "<what's wrong with this bullet point>",
+            "improved": "<stronger, action-oriented version with measurable impact>"
+        }}
+    ],
+    "parsedSections": {{
+        "contactInfo": "<extracted contact information or null if not found>",
+        "summary": "<extracted professional summary/objective or null>",
+        "experience": ["<each experience entry as a string>"],
+        "education": ["<each education entry as a string>"],
+        "skills": ["<each individual skill>"],
+        "projects": ["<each project entry as a string>"],
+        "certifications": ["<each certification as a string>"]
+    }}
 }}
 
 Rules:
@@ -57,6 +100,9 @@ Rules:
 - weaknesses should identify areas where the resume falls short
 - suggestions should provide actionable recommendations to improve the resume for this specific job
 - Each list should have 3-8 items
+- sectionScores: Score each section 0-100 based on quality, relevance to the job, and completeness. If a section is missing from the resume, give it a score of 0 with feedback noting it's absent.
+- bulletAnalysis: Find 3-5 of the weakest/most generic bullet points in the experience section. For each, explain the issue and provide a stronger, action-oriented alternative using measurable impact (numbers, percentages, scale). If there are no weak bullets, return an empty array.
+- parsedSections: Extract and structure the resume content into sections. Use null for sections not found, empty arrays for list sections not found.
 - Return ONLY valid JSON, no extra text
 """
 
@@ -91,6 +137,42 @@ Rules:
 
         # Ensure atsScore is an integer between 0-100
         result["atsScore"] = max(0, min(100, int(result["atsScore"])))
+
+        # Validate sectionScores — ensure all 6 sections exist with defaults
+        default_section = {"score": 0, "feedback": "Section not evaluated."}
+        if "sectionScores" not in result or not isinstance(result["sectionScores"], dict):
+            result["sectionScores"] = {}
+        for section in ["summary", "experience", "education", "skills", "projects", "formatting"]:
+            if section not in result["sectionScores"] or not isinstance(result["sectionScores"][section], dict):
+                result["sectionScores"][section] = default_section.copy()
+            else:
+                sec = result["sectionScores"][section]
+                sec["score"] = max(0, min(100, int(sec.get("score", 0))))
+                sec["feedback"] = sec.get("feedback", "No feedback available.")
+
+        # Validate bulletAnalysis — ensure it's a list of proper objects
+        if "bulletAnalysis" not in result or not isinstance(result["bulletAnalysis"], list):
+            result["bulletAnalysis"] = []
+        else:
+            validated_bullets = []
+            for bullet in result["bulletAnalysis"]:
+                if isinstance(bullet, dict) and "original" in bullet:
+                    validated_bullets.append({
+                        "original": bullet.get("original", ""),
+                        "issue": bullet.get("issue", "Could be stronger"),
+                        "improved": bullet.get("improved", bullet.get("original", "")),
+                    })
+            result["bulletAnalysis"] = validated_bullets
+
+        # Validate parsedSections — ensure structure with defaults
+        if "parsedSections" not in result or not isinstance(result["parsedSections"], dict):
+            result["parsedSections"] = {}
+        ps = result["parsedSections"]
+        ps.setdefault("contactInfo", None)
+        ps.setdefault("summary", None)
+        for list_field in ["experience", "education", "skills", "projects", "certifications"]:
+            if list_field not in ps or not isinstance(ps[list_field], list):
+                ps[list_field] = []
 
         return result
 

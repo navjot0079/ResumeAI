@@ -11,3 +11,5 @@ google-generativeai
 python-dotenv
 pydantic[email]
 slowapi
+python-docx
+reportlab

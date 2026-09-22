@@ -12,24 +12,31 @@ router = APIRouter()
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
+ALLOWED_EXTENSIONS = {".pdf", ".docx"}
+ALLOWED_CONTENT_TYPES = {
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
 
 @router.post("/upload", response_model=ResumeResponse)
 async def upload_resume(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ):
-    """Upload a PDF resume file."""
-    # Validate file type
-    if not file.filename.lower().endswith(".pdf"):
+    """Upload a PDF or DOCX resume file."""
+    # Validate file type by extension
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    if file_ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only PDF files are allowed",
+            detail="Only PDF and DOCX files are allowed",
         )
 
-    if file.content_type and file.content_type != "application/pdf":
+    if file.content_type and file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only PDF files are allowed",
+            detail="Only PDF and DOCX files are allowed",
         )
 
     # Read file content
@@ -61,7 +68,6 @@ async def upload_resume(
         )
 
     # Generate unique filename
-    file_ext = os.path.splitext(file.filename)[1]
     unique_filename = f"{uuid.uuid4().hex}{file_ext}"
     file_path = os.path.join(settings.UPLOAD_DIR, unique_filename)
 

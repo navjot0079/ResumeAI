@@ -6,7 +6,7 @@ from typing import List
 from app.database import get_database
 from app.middleware.auth_middleware import get_current_user
 from app.models.analysis import AnalysisRequest, AnalysisResponse, AnalysisListItem
-from app.services.resume_service import extract_text_from_pdf
+from app.services.resume_service import extract_text_from_file
 from app.services.ai_service import analyze_resume
 
 router = APIRouter()
@@ -30,9 +30,9 @@ async def create_analysis(
             detail="Resume not found",
         )
 
-    # Extract text from PDF (uses pypdf first, falls back to Gemini OCR for scanned PDFs)
+    # Extract text from PDF or DOCX (uses pypdf first, falls back to Gemini OCR for scanned PDFs)
     try:
-        resume_text = extract_text_from_pdf(resume["filePath"])
+        resume_text = extract_text_from_file(resume["filePath"])
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -63,6 +63,9 @@ async def create_analysis(
         "weaknesses": ai_result["weaknesses"],
         "suggestions": ai_result["suggestions"],
         "resumeSummary": ai_result["resumeSummary"],
+        "sectionScores": ai_result.get("sectionScores"),
+        "bulletAnalysis": ai_result.get("bulletAnalysis"),
+        "parsedSections": ai_result.get("parsedSections"),
         "createdAt": datetime.now(timezone.utc),
     }
 
@@ -135,6 +138,9 @@ async def get_analysis(
         weaknesses=analysis["weaknesses"],
         suggestions=analysis["suggestions"],
         resumeSummary=analysis["resumeSummary"],
+        sectionScores=analysis.get("sectionScores"),
+        bulletAnalysis=analysis.get("bulletAnalysis"),
+        parsedSections=analysis.get("parsedSections"),
         createdAt=analysis["createdAt"],
     )
 

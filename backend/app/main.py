@@ -10,7 +10,7 @@ from app.limiter import limiter
 
 from app.config import settings
 from app.database import connect_to_mongo, close_mongo_connection
-from app.routes import auth, resume, analysis, dashboard
+from app.routes import auth, resume, analysis, dashboard, export
 
 
 @asynccontextmanager
@@ -64,6 +64,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(resume.router, prefix="/api/resume", tags=["Resume"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["Analysis"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
+app.include_router(export.router, prefix="/api/export", tags=["Export"])
 
 
 @app.get("/")
