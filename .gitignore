@@ -34,3 +34,6 @@ uploads/
 # ===== Logs =====
 *.log
 npm-debug.log*
+
+# ===== Interview Notes (local only) =====
+INTERVIEW_QA.md
