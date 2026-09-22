@@ -170,11 +170,11 @@ function Analyzer() {
                 Drop your resume here or{' '}
                 <span className="text-gray-900 font-semibold underline">browse</span>
               </p>
-              <p className="text-sm text-gray-400">PDF only, up to 10MB</p>
+              <p className="text-sm text-gray-400">PDF or DOCX, up to 10MB</p>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,application/pdf"
+                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
                 className="hidden"
                 id="file-input"

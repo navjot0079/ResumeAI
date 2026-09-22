@@ -28,18 +28,25 @@ export function validatePassword(password) {
 export function validateFile(file) {
   const errors = []
   const maxSize = 10 * 1024 * 1024 // 10MB
+  const allowedExtensions = ['.pdf', '.docx']
+  const allowedTypes = [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ]
 
   if (!file) {
     errors.push('Please select a file')
     return { isValid: false, errors }
   }
 
-  if (!file.name.toLowerCase().endsWith('.pdf')) {
-    errors.push('Only PDF files are allowed')
+  const fileName = file.name.toLowerCase()
+  const hasValidExt = allowedExtensions.some((ext) => fileName.endsWith(ext))
+  if (!hasValidExt) {
+    errors.push('Only PDF and DOCX files are allowed')
   }
 
-  if (file.type && file.type !== 'application/pdf') {
-    errors.push('Invalid file type. Only PDF files are allowed')
+  if (file.type && !allowedTypes.includes(file.type)) {
+    errors.push('Invalid file type. Only PDF and DOCX files are allowed')
   }
 
   if (file.size > maxSize) {
